@@ -542,7 +542,7 @@ namespace Magento\Setup\Test\Unit\Model {
                     ]
                 )
             );
-            $installer = $this->prepareForUpdateModulesTests();
+            $installer = $this->prepareForUpdateModulesTests(false);
 
             $this->logger->expects($this->at(0))->method('log')->with('Cache cleared successfully');
             $this->logger->expects($this->at(1))->method('log')->with('File system cleanup:');
@@ -556,10 +556,14 @@ namespace Magento\Setup\Test\Unit\Model {
         {
             $this->cleanupFiles->expects($this->never())->method('clearCodeGeneratedClasses');
 
-            $installer = $this->prepareForUpdateModulesTests();
+            $installer = $this->prepareForUpdateModulesTests(true);
 
-            $this->logger->expects($this->at(0))->method('log')->with('Cache cleared successfully');
-            $this->logger->expects($this->at(1))->method('log')->with('Updating modules:');
+            $this->logger->expects($this->any())->method('log')->willReturnCallback(function(...$args){
+                $disallowedArgs = ['Updating modules:'];
+                $this->assertNotEquals($disallowedArgs, $args);
+            });
+
+            $this->logger->expects($this->once())->method('log')->with('Cache cleared successfully');
             $installer->updateModulesSequence(true);
         }
 
@@ -655,7 +659,7 @@ namespace Magento\Setup\Test\Unit\Model {
          * Prepare mocks for update modules tests and returns the installer to use
          * @return Installer
          */
-        private function prepareForUpdateModulesTests()
+        private function prepareForUpdateModulesTests(bool $keepGenerated = false)
         {
             $allModules = [
                 'Foo_One' => [],
@@ -671,7 +675,12 @@ namespace Magento\Setup\Test\Unit\Model {
                 ->will($this->returnValueMap([
                     [\Magento\Framework\App\Cache\Manager::class, $cacheManager]
                 ]));
-            $this->moduleLoader->expects($this->once())->method('load')->willReturn($allModules);
+
+            if ($keepGenerated) {
+                $this->moduleLoader->expects($this->never())->method('load');
+            } else {
+                $this->moduleLoader->expects($this->once())->method('load')->willReturn($allModules);
+            }
 
             $expectedModules = [
                 ConfigFilePool::APP_CONFIG => [
@@ -689,9 +698,16 @@ namespace Magento\Setup\Test\Unit\Model {
                 ->willReturn(true);
 
             $newObject = $this->createObject(false, false);
-            $this->configReader->expects($this->once())->method('load')
-                ->willReturn(['modules' => ['Bar_Two' => 0, 'Foo_One' => 1, 'Old_Module' => 0]]);
-            $this->configWriter->expects($this->once())->method('saveConfig')->with($expectedModules);
+
+            if ($keepGenerated) {
+                $this->configWriter->expects($this->never())->method('saveConfig');
+                $this->configReader->expects($this->never())->method('load');
+            } else {
+                $this->configReader->expects($this->once())->method('load')
+                    ->willReturn(['modules' => ['Bar_Two' => 0, 'Foo_One' => 1, 'Old_Module' => 0]]);
+
+                $this->configWriter->expects($this->once())->method('saveConfig')->with($expectedModules);
+            }
 
             return $newObject;
         }

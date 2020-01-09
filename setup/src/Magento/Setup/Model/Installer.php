@@ -1199,9 +1199,9 @@ class Installer
         $this->cleanCaches();
         if (!$keepGeneratedFiles) {
             $this->cleanupGeneratedFiles();
+            $this->log->log('Updating modules:');
+            $this->createModulesConfig([]);
         }
-        $this->log->log('Updating modules:');
-        $this->createModulesConfig([]);
     }
 
     /**
